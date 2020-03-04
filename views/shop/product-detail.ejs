@@ -7,10 +7,10 @@
     <main class="centered">
         <h1><%= product.tittle%></h1>
         <hr>
-        <div>
+        <div class="image">
             <img src="<%= product.imageUrl %>" alt="<%= product.tittle %>">
         </div>
-        <h2><%= product.price %></h2>
+        <h2>$<%= product.price %></h2>
         <p><%= product.description %></p>
         <%- include('../includes/add-to-cart.ejs', {product: product})%>
     </main>
