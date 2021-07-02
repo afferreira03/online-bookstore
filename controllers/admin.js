@@ -1,5 +1,7 @@
 const Product = require("../models/product");
 const { validationResult } = require('express-validator')
+const mongoose = require('mongoose');
+
 
 exports.getAddProduct = (req, res, next) => {
     res.render("admin/edit-product", {
@@ -14,10 +16,26 @@ exports.getAddProduct = (req, res, next) => {
 
 exports.postAddProduct = (req, res, next) => {
     const title = req.body.title;
-    const imgUrl = req.body.imageUrl;
+    const image = req.file;
     const price = req.body.price;
     const description = req.body.description;
     const errors = validationResult(req);
+
+    if(!image){
+        return res.status(422).render("admin/edit-product", {
+            pageTitle: "Add Product",
+            path: "/admin/edit-product",
+            editing: false,
+            product: {
+                title: title,
+                price: price,
+                description: description
+            },
+            hasError: true,
+            errorMessage: 'It\'s not a valid image format.',
+            validationErrors: []
+        });        
+    }
 
     if (!errors.isEmpty()) {
         return res.status(422).render("admin/edit-product", {
@@ -26,7 +44,6 @@ exports.postAddProduct = (req, res, next) => {
             editing: false,
             product: {
                 title: title,
-                imageUrl: imgUrl,
                 price: price,
                 description: description
             },
@@ -36,11 +53,13 @@ exports.postAddProduct = (req, res, next) => {
         });
     }
 
+    const 
+
     const product = new Product({
         title: title,
         price: price,
         description: description,
-        imageUrl: imgUrl,
+        imageUrl: image,
         userId: req.session.user,
     });
 
@@ -51,7 +70,7 @@ exports.postAddProduct = (req, res, next) => {
             res.redirect("/admin/products");
         })
         .catch((err) => {
-            console.log(err)
+            next(new Error(err));
         });
 };
 
@@ -78,7 +97,9 @@ exports.getEditProduct = (req, res, next) => {
                 validationErrors: []
             });
         })
-        .catch((err) => console.log(err));
+        .catch((err) =>{
+            next(new Error(err));
+        });
 };
 
 exports.postEditProduct = (req, res, next) => {
@@ -123,7 +144,9 @@ exports.postEditProduct = (req, res, next) => {
                     res.redirect("/admin/products");
                 });
         })
-        .catch((err) => console.log(err));
+        .catch((err) =>{
+            next(new Error(err));
+        });
 };
 
 exports.postDeleteProductById = (req, res, next) => {
@@ -136,7 +159,9 @@ exports.postDeleteProductById = (req, res, next) => {
             console.log("PRODUCT DELETED");
             res.redirect("/admin/products");
         })
-        .catch((err) => console.log(err));
+        .catch((err) => {
+            next(new Error(err));
+        });
 };
 
 exports.getAdminProducts = (req, res, next) => {
@@ -150,5 +175,7 @@ exports.getAdminProducts = (req, res, next) => {
                 path: "/admin/products"
             });
         })
-        .catch((err) => console.log(err));
+        .catch((err) => {
+            next(new Error(err));
+        });
 };
