@@ -1,5 +1,5 @@
 const express = require('express');
-const bodyParser = require('body-parser');
+const multer = require('multer');
 const path = require('path');
 const mongoose = require('mongoose');
 const session = require('express-session');
@@ -28,10 +28,32 @@ const store = new MongodbStore({
 
 const csrfProtection = csrf();
 
+const fileStorage = multer.diskStorage({
+    destination: (req, file, cb) => {
+        cb(null, 'images');
+    },
+    filename: (req, file, cb) => {
+        cb(null, new Date().toISOString().replace(/:/g,'_') + '-' + file.originalname);
+    }
+});
+
+const fileFilter = (req, file, cb) => {
+    if (
+        file.mimetype === 'image/png' ||
+        file.mimetype === 'image/jpg' ||
+        file.mimetype === 'image/jpeg'
+    ) {
+        cb(null, true);
+    } else {
+        cb(null, false);
+    }
+};
+
 app.set('view engine', 'ejs');
 app.set('views', 'views');
 
-app.use(bodyParser.urlencoded({ extended: false }));
+app.use(express.urlencoded({ extended: false }));
+app.use(multer({ storage: fileStorage, fileFilter: fileFilter }).single('image'));
 app.use(express.static(path.join(__dirname, 'public')));
 
 app.use(session({
@@ -50,14 +72,14 @@ app.use((req, res, next) => {
     }
     User.findById(req.session.user)
         .then(user => {
-            if(!user){
+            if (!user) {
                 return next();
-            }            
+            }
             req.user = user;
             next();
         })
         .catch(err => {
-            throw new Error(err);
+            next(new Error(err));
         });
 });
 
@@ -70,9 +92,15 @@ app.use((req, res, next) => {
 app.use('/admin', adminRoutes);
 app.use(shopRoutes);
 app.use(authRoutes);
+app.get('/500', errorController.get500);
 app.use(errorController.get404);
 
-mongoose.connect(MONGO_CONNECTION_URL, 
+app.use((error, req, res, next) => {
+    console.log(error);
+    res.redirect('/500');
+});
+
+mongoose.connect(MONGO_CONNECTION_URL,
     {
         useNewUrlParser: true,
         useUnifiedTopology: true
