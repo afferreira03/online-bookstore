@@ -1,5 +1,6 @@
 const Product = require("../models/product");
-const { validationResult } = require('express-validator')
+const fileHelper = require('../util/file');
+const { validationResult } = require('express-validator');
 const mongoose = require('mongoose');
 
 
@@ -52,12 +53,12 @@ exports.postAddProduct = (req, res, next) => {
             validationErrors: errors.array()
         });
     }
-
+    const imgUrl = image.path.replace(/\\/g, '/');
     const product = new Product({
         title: title,
         price: price,
         description: description,
-        imageUrl: image,
+        imageUrl: imgUrl,
         userId: req.session.user,
     });
 
@@ -103,7 +104,7 @@ exports.getEditProduct = (req, res, next) => {
 exports.postEditProduct = (req, res, next) => {
     const id = req.body.id;
     const title = req.body.title;
-    const imgUrl = req.body.imageUrl;
+    const image = req.file;
     const price = req.body.price;
     const description = req.body.description;
     const errors = validationResult(req);
@@ -116,7 +117,6 @@ exports.postEditProduct = (req, res, next) => {
             product: {
                 _id: id,
                 title: title,
-                imageUrl: imgUrl,
                 price: price,
                 description: description
             },
@@ -135,7 +135,10 @@ exports.postEditProduct = (req, res, next) => {
             product.title = title;
             product.price = price;
             product.description = description;
-            product.imageUrl = imgUrl;
+            if(image){
+                fileHelper.deleteFile(product.imageUrl)
+                product.imageUrl = image.path.replace(/\\/g, '/');
+            }
             return product
                 .save()
                 .then((result) => {
@@ -149,10 +152,15 @@ exports.postEditProduct = (req, res, next) => {
 
 exports.postDeleteProductById = (req, res, next) => {
     const prodId = req.body.prodId;
-    Product.deleteOne({
-        _id: prodId,
-        userId: req.user._id
-    })
+
+    Product.findById(prodId)
+        .then(prod => {
+            if(!prod) {
+                return next(new Error('Product not found'));
+            }
+            fileHelper.deleteFile(prod.imageUrl)
+            return Product.deleteOne({_id: prodId, userId: req.user._id});
+        })
         .then(() => {
             console.log("PRODUCT DELETED");
             res.redirect("/admin/products");
