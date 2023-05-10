@@ -1,20 +1,39 @@
 const fs = require('fs');
 const path = require('path');
+const stripe = require('stripe')('sk_test_51K475pDIuklzV5gyl40VfWgOzlA9mk70JwBmyWlDAX1IrMxPJOkQ6kuujqAAFvQDkMYfangVHGlp8DqexFzhtjhg00l4ZUBmzT');
 
 const PDFDocument = require('pdfkit')
 const Product = require('../models/product');
 const Order = require('../models/order');
 
+const ITENS_PER_PAGE = 2;
+
 exports.getProducts = (req, res, next) => {
+
+    const page = +req.query.page || 1;
+    let totalItens;
+
     Product.find()
+        .countDocuments()
+        .then(numProducts => {
+            totalItens = numProducts;
+            return Product.find()
+                .skip((page - 1) * ITENS_PER_PAGE)
+                .limit(ITENS_PER_PAGE);
+        })
         .then(products => {
             res.render('shop/product-list', {
                 prods: products,
                 pageTitle: 'Shop',
-                path: '/products'
+                path: '/products',
+                currentPage: page,
+                hasNextPage: ITENS_PER_PAGE * page < totalItens,
+                hasPreviusPage: page > 1,
+                nextPage: page + 1,
+                previusPage: page - 1,
+                lastPage: Math.ceil(totalItens / ITENS_PER_PAGE)
             });
-        })
-        .catch(err =>{
+        }).catch(err =>{
             next(new Error(err));
         });
 };
@@ -35,12 +54,27 @@ exports.getProduct = (req, res, next) => {
 }
 
 exports.getIndex = (req, res, next) => {
+    const page = +req.query.page || 1;
+    let totalItens;
+
     Product.find()
-        .then(products => {
+        .countDocuments()
+        .then(numProducts => {
+            totalItens = numProducts;
+            return Product.find()
+                .skip((page - 1) * ITENS_PER_PAGE)
+                .limit(ITENS_PER_PAGE);
+        }).then(products => {
             res.render('shop/index', {
                 prods: products,
                 pageTitle: 'Shop',
-                path: '/'
+                path: '/',
+                currentPage: page,
+                hasNextPage: ITENS_PER_PAGE * page < totalItens,
+                hasPreviusPage: page > 1,
+                nextPage: page + 1,
+                previusPage: page - 1,
+                lastPage: Math.ceil(totalItens / ITENS_PER_PAGE)
             });
         })
         .catch(err => {
@@ -106,9 +140,45 @@ exports.getOrders = (req, res, next) => {
 }
 
 exports.getCheckout = (req, res, next) => {
-    res.render('shop/checkout', {
-        pageTitle: 'Shop Cart',
-        path: '/checkout'
+    let products;
+    let total = 0;
+
+    req.user
+    .populate('cart.items.productId')
+    .execPopulate()
+    .then(user => {
+        products = user.cart.items;
+        total = 0;
+        products.forEach(p => {
+            total += p.quantity * p.productId.price;
+        })
+
+        return stripe.checkout.sessions.create({
+            payment_method_types: ['card'],
+            line_itens: products.map(p => {
+                return {
+                    name: p.productId.title,
+                    description : p.productId.description,
+                    amount: p.productId.price * 100,
+                    currency: 'brl',
+                    quantity: p.quantity
+                }
+            }),
+            success_url: req.protocol + '://' + req.get('host') + '/checkout/success', 
+            cancel_url:  req.protocol + '://' + req.get('host') + '/checkout/cancel' 
+        });
+    })
+    .then(session => {
+        res.render('shop/checkout', { 
+            pageTitle: 'Checkout',
+            path: '/checkout',
+            products: products,
+            totalSum: total,
+            sessionId: session.id
+        });
+    })
+    .catch(err => {
+        next(new Error(err));
     });
 }
 

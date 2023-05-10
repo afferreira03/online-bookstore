@@ -3,3 +3,5 @@ app.js
 package.json
 .vscode
 node_modules
+images/*
+data/invoices/*
